@@ -1,0 +1,10 @@
+.pio/
+.vscode/
+__pycache__/
+*.pyc
+
+# API keys and config live on the SD card (config.json), never in source
+config.json
+
+# Hardcoded WiFi / API credentials — never commit
+src/secrets.h

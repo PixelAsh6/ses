@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Smart Speaker</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body { max-width: 600px; margin: 0 auto; padding: 12px; }
+h2 { margin: 0 0 8px 0; }
+nav button { padding: 6px 20px; margin-right: 4px; cursor: pointer; }
+nav button.active { font-weight: bold; border-bottom: 3px solid; }
+.block { margin: 12px 0; padding-bottom: 12px; }
+.row { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
+.row label { width: 130px; flex-shrink: 0; }
+.row input[type=range] { flex: 1; }
+.row .val { width: 40px; text-align: right; }
+.controls { display: flex; gap: 8px; margin: 4px 0; }
+.controls button { flex: 1; padding: 9px 4px; }
+.fs-bar { display: flex; align-items: center; gap: 10px; margin: 6px 0 4px 0; flex-wrap: wrap; }
+.fs-upload { display: flex; align-items: center; gap: 8px; margin: 4px 0 8px 0; flex-wrap: wrap; }
+table.fs { width: 100%; border-collapse: collapse; }
+table.fs th { text-align: left; padding: 4px 8px; border-top: 1px solid; border-bottom: 1px solid; }
+table.fs td { padding: 4px 8px; border-bottom: 1px solid #ddd; vertical-align: middle; }
+table.fs td.sz { text-align: right; white-space: nowrap; width: 80px; }
+table.fs td.act { text-align: right; width: 130px; }
+table.fs a { text-decoration: none; }
+table.fs a:hover { text-decoration: underline; }
+.sblock { margin: 0 0 18px 0; }
+.sblock strong { display: block; margin-bottom: 8px; font-size: 1.05em; }
+.field { margin: 6px 0; }
+.field label { display: block; margin-bottom: 2px; }
+.field input { display: block; width: 260px; }
+.field textarea { display: block; }
+</style>
+</head>
+<body>
+
+<h2>Smart Speaker</h2>
+<nav>
+  <button id="btn-main" class="active" onclick="showTab('main')">Main</button>
+  <button id="btn-settings" onclick="showTab('settings');loadSettings()">Settings</button>
+</nav>
+
+<!-- ── Main ── -->
+<div id="tab-main">
+
+  <div class="block">
+    <div id="st-row" style="display:none">Status: <b><span id="st"></span></b></div>
+    <div>Now playing: <b><span id="np"></span></b><span id="dur"></span></div>
+    <div style="margin-top:6px">Input: <span id="heard"></span></div>
+    <div style="margin-top:3px">Output: <span id="answer"></span></div>
+  </div>
+
+  <div class="block">
+    <div class="controls">
+      <button onclick="fetch('/prev').then(refresh)">Prev</button>
+      <button id="ppbtn" onclick="playPause()">Play</button>
+      <button onclick="fetch('/next').then(refresh)">Next</button>
+      <button id="recbtn" onclick="doRecord()">Record</button>
+    </div>
+    <span id="countdown"></span>
+  </div>
+
+  <div class="block">
+    <div class="row">
+      <label>Input Volume</label>
+      <input type="range" min="1" max="200" id="mic" value="100"
+        oninput="document.getElementById('mv').textContent=this.value"
+        onchange="setMic(this.value)">
+      <span class="val" id="mv">100</span>
+    </div>
+    <div class="row">
+      <label>Output Volume</label>
+      <input type="range" min="1" max="100" id="vol" value="30"
+        oninput="document.getElementById('vv').textContent=this.value"
+        onchange="setVol(this.value)">
+      <span class="val" id="vv">30</span>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="fs-bar">
+      <button id="upbtn" onclick="fsUp()" style="display:none">Up</button>
+      <span>Path: <b><span id="fspath">/</span></b></span>
+      <button onclick="fsLoad(curPath)">Refresh</button>
+    </div>
+    <div class="fs-upload">
+      <input type="file" id="filepick" accept=".mp3,.wav" multiple>
+      <button onclick="doUpload()">Upload here</button>
+      <span id="upstatus"></span>
+    </div>
+    <div id="fslist"></div>
+  </div>
+
+</div>
+
+<!-- ── Settings ── -->
+<div id="tab-settings" style="display:none">
+  <form id="settingsForm" onsubmit="saveSettings(event)">
+
+    <div class="sblock">
+      <strong>ESP AP</strong>
+      <div class="field">
+        <label>SSID</label>
+        <input name="ap_ssid" id="ap_ssid" type="text">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input name="ap_pass" id="ap_pass" type="text">
+      </div>
+    </div>
+
+    <div class="sblock">
+      <strong>WiFi</strong>
+      <div class="field">
+        <label>SSID</label>
+        <input name="sta_ssid" id="sta_ssid" type="text">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input name="sta_pass" id="sta_pass" type="text">
+      </div>
+    </div>
+
+    <div class="sblock">
+      <strong>API Keys</strong>
+      <div class="field">
+        <label>Wit.ai token</label>
+        <input name="wit_key" id="wit_key" type="text" style="width:340px">
+      </div>
+      <div class="field">
+        <label>Groq API key</label>
+        <input name="groq_key" id="groq_key" type="text" style="width:340px">
+      </div>
+    </div>
+
+    <div class="sblock">
+      <strong>Assistant</strong>
+      <div class="field">
+        <label>Wake word</label>
+        <input name="ai_name" id="ai_name" type="text">
+      </div>
+      <div class="field">
+        <label>City (for weather)</label>
+        <input name="city" id="city" type="text">
+      </div>
+      <div class="field">
+        <label>Master prompt</label>
+        <textarea name="master_prompt" id="master_prompt" rows="5" cols="54"></textarea>
+      </div>
+    </div>
+
+    <input type="submit" value="Save Settings">
+    <span id="savemsg" style="margin-left:10px"></span>
+  </form>
+</div>
+
+<script>
+var curPath = '/';
+
+function showTab(t) {
+  document.getElementById('tab-main').style.display = t === 'main' ? 'block' : 'none';
+  document.getElementById('tab-settings').style.display = t === 'settings' ? 'block' : 'none';
+  document.getElementById('btn-main').className = t === 'main' ? 'active' : '';
+  document.getElementById('btn-settings').className = t === 'settings' ? 'active' : '';
+}
+
+function fmtDur(s) {
+  var m = Math.floor(s / 60), ss = s % 60;
+  return ' [' + m + ':' + (ss < 10 ? '0' : '') + ss + ']';
+}
+
+function fmtSz(b) {
+  if (b > 1048576) return (b / 1048576).toFixed(1) + ' MB';
+  if (b > 1024)    return (b / 1024).toFixed(0) + ' KB';
+  return b + ' B';
+}
+
+function escHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function escJs(s) {
+  return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+function refresh() {
+  fetch('/status').then(function(r) { return r.json(); }).then(function(d) {
+    document.getElementById('st').textContent = d.status;
+    document.getElementById('st-row').style.display = d.status_visible ? 'block' : 'none';
+    document.getElementById('np').textContent = d.playing || '';
+    document.getElementById('dur').textContent = (d.playing && d.duration_s) ? fmtDur(d.duration_s) : '';
+    document.getElementById('ppbtn').textContent = d.playing_active ? 'Pause' : 'Play';
+    document.getElementById('vol').value = d.volume;
+    document.getElementById('vv').textContent = d.volume;
+    document.getElementById('mic').value = d.mic_gain;
+    document.getElementById('mv').textContent = d.mic_gain;
+    document.getElementById('heard').textContent = d.heard || '';
+    document.getElementById('answer').textContent = d.answer || '';
+  });
+}
+
+function playPause() {
+  fetch('/play-pause', { method: 'POST' }).then(refresh);
+}
+
+function doRecord() {
+  var btn = document.getElementById('recbtn');
+  btn.disabled = true;
+  var cd = document.getElementById('countdown');
+  var n = 7;
+  cd.textContent = ' ' + n + 's';
+  var iv = setInterval(function() {
+    n--;
+    cd.textContent = n > 0 ? ' ' + n + 's' : '';
+    if (n <= 0) clearInterval(iv);
+  }, 1000);
+  fetch('/record', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function() {
+      var poll = setInterval(function() {
+        fetch('/status').then(function(r) { return r.json(); }).then(function(d) {
+          document.getElementById('st').textContent = d.status;
+          if (!d.busy) { clearInterval(poll); btn.disabled = false; cd.textContent = ''; }
+        });
+      }, 1000);
+    })
+    .catch(function() { clearInterval(iv); cd.textContent = ''; btn.disabled = false; });
+}
+
+function setVol(v) {
+  fetch('/volume', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ volume: parseInt(v) }) });
+}
+function setMic(v) {
+  fetch('/mic-gain', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mic_gain: parseInt(v) }) });
+}
+
+function saveSettings(ev) {
+  ev.preventDefault();
+  var data = new URLSearchParams(new FormData(document.getElementById('settingsForm'))).toString();
+  fetch('/settings', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:data})
+    .then(function(r) { return r.json(); })
+    .then(function() {
+      var m = document.getElementById('savemsg');
+      m.textContent = 'Saved.';
+      setTimeout(function() { m.textContent = ''; }, 3000);
+    });
+}
+
+function loadSettings() {
+  fetch('/settings-json').then(function(r) { return r.json(); }).then(function(d) {
+    // API keys intentionally not pre-populated
+    ['ap_ssid', 'ap_pass', 'sta_ssid', 'sta_pass',
+     'ai_name', 'city', 'master_prompt'].forEach(function(k) {
+      var el = document.getElementById(k);
+      if (el) el.value = d[k] !== undefined ? d[k] : '';
+    });
+  });
+}
+
+function fsLoad(path) {
+  curPath = path;
+  document.getElementById('fspath').textContent = path;
+  document.getElementById('upbtn').style.display = path !== '/' ? 'inline' : 'none';
+  fetch('/files-json?path=' + encodeURIComponent(path))
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var entries = (d.entries || []).sort(function(a, b) {
+        if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+      var html = '<table class="fs"><thead><tr><th>Name</th><th>Size</th><th></th></tr></thead><tbody>';
+      if (entries.length === 0) {
+        html += '<tr><td colspan="3">(empty)</td></tr>';
+      }
+      entries.forEach(function(e) {
+        if (e.isDir) {
+          html += '<tr>'
+               + '<td><a href="#" onclick="fsLoad(\'' + escJs(e.path) + '\');return false;"><b>' + escHtml(e.name) + '/</b></a></td>'
+               + '<td class="sz"></td>'
+               + '<td class="act"><button onclick="fsDelete(\'' + escJs(e.path) + '\',\'' + escJs(e.name) + '\')">Delete</button></td>'
+               + '</tr>';
+        } else {
+          var nl = e.name.toLowerCase();
+          var playable = nl.endsWith('.mp3') || nl.endsWith('.wav');
+          var nameCell = playable
+            ? '<a href="#" onclick="playFile(\'' + escJs(e.path) + '\');return false;">' + escHtml(e.name) + '</a>'
+            : escHtml(e.name);
+          html += '<tr>'
+               + '<td>' + nameCell + '</td>'
+               + '<td class="sz">' + fmtSz(e.size) + '</td>'
+               + '<td class="act">'
+               + '<a href="/download?path=' + encodeURIComponent(e.path) + '" style="margin-right:6px">Download</a>'
+               + '<button onclick="fsDelete(\'' + escJs(e.path) + '\',\'' + escJs(e.name) + '\')">Delete</button>'
+               + '</td>'
+               + '</tr>';
+        }
+      });
+      html += '</tbody></table>';
+      document.getElementById('fslist').innerHTML = html;
+    });
+}
+
+function playFile(path) {
+  fetch('/play-file?path=' + encodeURIComponent(path)).then(refresh);
+}
+
+function fsUp() {
+  var sl = curPath.lastIndexOf('/');
+  fsLoad(sl > 0 ? curPath.substring(0, sl) : '/');
+}
+
+function fsDelete(path, name) {
+  fetch('/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'path=' + encodeURIComponent(path)
+  }).then(function() { fsLoad(curPath); });
+}
+
+function doUpload() {
+  var fp = document.getElementById('filepick');
+  if (!fp.files.length) { alert('Choose a file first.'); return; }
+  var files = Array.from(fp.files);
+  var total = files.length;
+  var idx = 0;
+  var st = document.getElementById('upstatus');
+  function uploadNext() {
+    if (idx >= total) {
+      fp.value = '';
+      st.textContent = '';
+      fsLoad(curPath);
+      return;
+    }
+    var f = files[idx];
+    st.textContent = (idx + 1) + '/' + total + ' — ' + f.name;
+    var fd = new FormData();
+    fd.append('file', f, f.name);
+    fetch('/upload?path=' + encodeURIComponent(curPath), { method: 'POST', body: fd })
+      .then(function() { idx++; uploadNext(); });
+  }
+  uploadNext();
+}
+
+refresh();
+setInterval(refresh, 4000);
+fsLoad('/');
+</script>
+</body>
+</html>
